@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 import sys
 import time
+from pathlib import Path
 import datetime
-from fb_models import FbDB
+from fb_models import FbDB, dObj
+import json
 import logging
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -10,9 +12,12 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.common.keys import Keys
 from selenium.common.exceptions import * #
 
+
+
+
+
 class FBParser:
-	_profile = {'ID':'',
-				'friends': {}}
+	#_profile = dObj() #{'ID':'', 'friends': {}}
 	_db = None
 
 	def __init__(self, pdriver, ptimeout, pmaximize=True):
@@ -27,26 +32,56 @@ class FBParser:
 		
 
 	def nav2Profile(self, pID):
-		self._profile["ID"]=pID
-		self._driver.get('https://www.facebook.com/{}'.format(self._profile["ID"]))
+		self._profile = dObj()
+		self._profile.ID=pID
+		self._profile.friends = dObj()
+		self._profile.friends.cntF = -1
+		self._profile.friends.cntM = -1
+
+		self._driver.get('https://www.facebook.com/{}'.format(self._profile.ID))
 		time.sleep(3)
-		self._db = FbDB(ppID=self._profile["ID"])
+		self._db = FbDB(ppID=self._profile.ID)
+
+		self._driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+		time.sleep(1)
+		self._driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+		time.sleep(1)
+		frnds=self._driver.find_elements_by_xpath('//div[@class="fsm fwn fcb"]//a[contains(@href,"friends") and @class="_39g5"]')
+		logging.info(len(frnds))
+		for f in frnds:
+			logging.info(f.text)
+			if 'общи' in f.text:
+				self._profile.friends.cntM = int(onlyDigits(f.text))
+			else:
+				self._profile.friends.cntF = int(onlyDigits(f.text))
+		logging.info(self._profile.toJSON())
+		self._db.saveFriendCount(self._profile.toJSON())		
+
 	
 	def nav2Friends(self):
+		self._driver.execute_script("window.scrollTo(0, 0);")
 		links = self._driver.find_elements_by_xpath('//a[@data-tab-key="friends"]')
-		self._profile["friends"]["cnt"] = 0
+		
 		try:
-			spans = links[0].find_elements_by_xpath('./span[@class="_gs6"]')
-			self._profile["friends"]["cnt"] = int(removeSpaces(spans[0].text))
+			if self._profile.friends.cntF + self._profile.friends.cntM < 0:
+				spans = links[0].find_elements_by_xpath('./span[@class="_gs6"]')
+				try:
+					self._profile.friends.cntF = int(removeSpaces(spans[0].text))
+				except:
+					logging.info('ошибка чтения кол-ва друзей из закладки Друзья')
+
 			links[0].click()
 		except IndexError:
 			logging.info('не найдена ссылка перехода на страницу Друзья')
 		time.sleep(3)
-		self._db.saveFriendCount(self._profile["friends"]["cnt"])
-		return self._profile["friends"]["cnt"]
+		#self._db.saveFriendCount(self._profile["friends"]["cnt"])
+		return self._profile.friends.cntF
 	
 	def scroll2EndPG(self):
-		cntPGDown = 1 + round(self._profile["friends"]["cnt"]/16.0)
+		if self._profile.friends.cntF > 0:
+			cntPGDown = 1 + round(self._profile.friends.cntF/16.0)
+		else:
+			cntPGDown = 300
 		toDo = True
 		alltime = 0
 		time_avg = 0
@@ -56,34 +91,40 @@ class FBParser:
 		#for i in range(1, cntPGDown):
 			i+=1
 			started_at = time.monotonic()
+			h_old=self._driver.execute_script("return document.body.scrollHeight")
 			self._driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
 			if time_avg > 0:
 				estim = (cntPGDown-i)*time_avg
 			logging.info('Листаем список друзей {:03d}/{:03d} ({:05.2f}%), {} сек.'.format(i, cntPGDown, i*100/cntPGDown, estim))
 			time.sleep(3)
-			
+						
 			for elm in self._driver.find_elements_by_xpath("//h3[@class='uiHeaderTitle']"):
-				if elm.text == 'Больше о вас':
+				if oneElementInStr(['Больше о вас', 'Дополнительная информация о', ], elm.text):
 					logging.info('На странице отображен полный список друзей')
 					toDo = False
 					break
+			
 			if toDo and abs(cntPGDown - i)<2:
 				cntPGDown += 1
 			
 			total_slept_for = time.monotonic() - started_at
 			alltime+=total_slept_for
 			time_avg = round(alltime/i)
-		
-
+			
+			h_cur=self._driver.execute_script("return document.body.scrollHeight")
+			if toDo and abs(h_cur - h_old) < 5:
+				toDo = False
+				logging.info('Профиль {} не содержит дополнительной информации'.format(self._profile.ID))
 	
-	def save2File(self):
-		flname = 'x_fbfriends_{}.html'.format(datetime.datetime.now().strftime('%y%m%d_%H%M'))
+	def save2File(self, fltmpl='fbfriends'):
+		Path('./profiles').mkdir(parents=True, exist_ok=True)
+		flname = './profiles/x_{}_{}.html'.format(fltmpl, datetime.datetime.now().strftime('%y%m%d_%H%M%S'))
 		with open(flname, 'w', encoding='utf-8') as flres:
 			flres.writelines([self._driver.page_source])
 		return flname
 
 	def parseFriends(self):
-		self._profile["friends"]["lst"] = []
 		indx = 0
 		for fr in self._driver.find_elements_by_xpath('//li[@class="_698"]'):
 			indx+=1
@@ -137,6 +178,17 @@ def getFriendID(linkstr):
 
 def removeSpaces(s):
 	return s.replace(' ', '').replace(chr(160), '').strip()
+
+def oneElementInStr(elements, pstr):
+	res = False
+	for el in elements:
+		if el in pstr:
+			res = True
+			break
+	return res
+
+def onlyDigits(pstr):
+	return ''.join([ch for ch in pstr if ch.isdigit()])
 
 #https://www.facebook.com/friends/requests/?fcref=jwl
 #$x('//div[contains(@class,"friendRequestItem")]/@data-id')[0].value

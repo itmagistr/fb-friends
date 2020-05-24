@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import json
 from pony import orm
 import pony.orm.dbproviders.sqlite
 import datetime
@@ -10,17 +11,23 @@ db = orm.Database()
 
 @db.on_connect(provider='sqlite')
 def sqlite_case_sensitivity(db, connection):
-    cursor = connection.cursor()
-    cursor.execute('PRAGMA case_sensitive_like = OFF')
+	cursor = connection.cursor()
+	cursor.execute('PRAGMA case_sensitive_like = OFF')
 
 db.bind(provider='sqlite', filename='fbdb.sqlite', create_db=True)
 
-
+class dObj:
+	def toJSON(self):
+		return json.dumps(self, default=lambda o: o.__dict__, 
+			sort_keys=True, indent=4)
+		
 class IRun(db.Entity):
 	dt = orm.Required(datetime.datetime) #default=datetime.datetime.now()
 	uid = orm.Required(str) #, default=uuid.uuid4()
 	pID = orm.Required(str) # profile ID
 	cntF = orm.Optional(int)
+	cntM = orm.Optional(int)
+	jdata = orm.Optional(orm.Json)
 	friends = orm.Set('Friend', cascade_delete=True, reverse='irun')
 
 class Friend(db.Entity):
@@ -57,8 +64,11 @@ class FbDB:
 				sf = Friend(irun=ir, data=j, name=j['name'], cntF=j['cntFriends'], cntM=j['cntFriendsM'], cntT=j['txtFriends'], frID=j['frID'])
 			orm.flush()
 
-	def saveFriendCount(self, cntF):
+	def saveFriendCount(self, profile):
+		p = json.loads(profile)
 		with orm.db_session():
 			ir = IRun.get(id=self.rID)
-			ir.cntF = cntF
+			ir.jdata = p
+			ir.cntF = p['friends']['cntF'] if 'cntF' in p['friends'].keys() else -1
+			ir.cntM = p['friends']['cntM'] if 'cntM' in p['friends'].keys() else -1
 			orm.flush()
