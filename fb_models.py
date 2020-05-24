@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import json
 from pony import orm
 import pony.orm.dbproviders.sqlite
 import datetime
@@ -11,24 +10,19 @@ db = orm.Database()
 
 @db.on_connect(provider='sqlite')
 def sqlite_case_sensitivity(db, connection):
-	cursor = connection.cursor()
-	cursor.execute('PRAGMA case_sensitive_like = OFF')
+    cursor = connection.cursor()
+    cursor.execute('PRAGMA case_sensitive_like = OFF')
 
 db.bind(provider='sqlite', filename='fbdb.sqlite', create_db=True)
 
-class dObj:
-	def toJSON(self):
-		return json.dumps(self, default=lambda o: o.__dict__, 
-			sort_keys=True, indent=4)
-		
+
 class IRun(db.Entity):
 	dt = orm.Required(datetime.datetime) #default=datetime.datetime.now()
 	uid = orm.Required(str) #, default=uuid.uuid4()
 	pID = orm.Required(str) # profile ID
 	cntF = orm.Optional(int)
-	cntM = orm.Optional(int)
-	jdata = orm.Optional(orm.Json)
 	friends = orm.Set('Friend', cascade_delete=True, reverse='irun')
+	frReq = orm.Set('FriendReq', cascade_delete=True, reverse='irun')
 
 class Friend(db.Entity):
 	irun = orm.Required(IRun, reverse='friends')
@@ -38,7 +32,11 @@ class Friend(db.Entity):
 	cntM = orm.Optional(int)
 	cntT = orm.Optional(str)
 	frID = orm.Optional(str) #friend profile ID
-	
+
+class FriendReq(db.Entity):
+	irun = orm.Required(IRun, reverse='frReq')
+	pID = orm.Required(str)
+
 db.generate_mapping(create_tables=True)
 
 class FbDB:
@@ -64,11 +62,20 @@ class FbDB:
 				sf = Friend(irun=ir, data=j, name=j['name'], cntF=j['cntFriends'], cntM=j['cntFriendsM'], cntT=j['txtFriends'], frID=j['frID'])
 			orm.flush()
 
-	def saveFriendCount(self, profile):
-		p = json.loads(profile)
+	def saveFriendCount(self, cntF):
 		with orm.db_session():
 			ir = IRun.get(id=self.rID)
-			ir.jdata = p
-			ir.cntF = p['friends']['cntF'] if 'cntF' in p['friends'].keys() else -1
-			ir.cntM = p['friends']['cntM'] if 'cntM' in p['friends'].keys() else -1
+			ir.cntF = cntF
 			orm.flush()
+	
+	def saveFriendReq(self, frRequests):
+		with orm.db_session():
+			ir = IRun.get(id=self.rID)
+			for r in frRequests:
+				fr = FriendReq(irun=ir, pID=r)
+	@property
+	def curUID(self):
+		return self.uid
+	@property
+	def curID(self):
+		return self.rID			
