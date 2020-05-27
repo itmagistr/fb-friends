@@ -15,6 +15,7 @@ from selenium.common.exceptions import * #
 class FBParser:
 	#_profile = dObj() #{'ID':'', 'friends': {}}
 	_db = None
+	_wh = []
 
 	def __init__(self, pdriver, ptimeout, pmaximize=True):
 		chrome_options = Options()
@@ -172,6 +173,41 @@ class FBParser:
 		pass
 		return	
 
+	# def switchOnTab(self, num):
+	# 	try:
+	# 		if len(self._driver.window_handles) < 2:
+	# 			self._driver.execute_script("window.open('about:blank','_blank');")
+				
+	# 		self._driver.switch_to.window(self._driver.window_handles[num])
+	# 	except IndexError:
+	# 		logging.info(f'switchOnTab error Window index {num}')
+	# 	return
+
+	def saveReactionList(self):
+		posts = self._driver.find_elements_by_xpath('//div[@class="_5pcb _4b0l _2q8l"]')
+		# соберем список ссылок реакций
+		psts = []
+		for p in posts:
+			tp = dObj()
+			tp.postid = p.get_attribute('id')
+			logging.info(f'postid: {tp.postid}')
+			likes = p.find_elements_by_xpath('.//a[contains(@href,"ufi/reaction/profile/browser")]')
+			# взять ссылку на список реакций по данному посту
+			try:
+				tp.urlReactions = likes[0].get_attribute('href')
+				logging.info(f'reaction url: {tp.urlReactions}')
+			except:
+				tp.urlReactions = ''
+				logging.info(f'??? urlReactions not difined postid: {tp.postid}')
+			psts.append(tp)
+
+		# пройдемся по списку ссылок
+		for p in psts:
+			self._driver.get(p.urlReactions)
+			time.sleep(3)
+			self.saveReaction2File(postID=p.postid)
+		return
+
 	def getFriendReqList(self):
 		self._driver.get('https://www.facebook.com/friends/requests/?fcref=jwl')
 		time.sleep(3)
@@ -192,6 +228,20 @@ class FBParser:
 		with open(flname, 'w', encoding='utf-8') as flres:
 			flres.writelines([self._driver.page_source])
 		return flname
+
+	
+	def saveReaction2File(self, postID):
+		pth = './profiles/{}'.format(self._profile.ID)
+		Path(pth).mkdir(parents=True, exist_ok=True)
+		flname = '{}/{}_{}_{}.html'.format(pth, FLTYPE['REACT']['litera'], 
+											self._profile.ID, 
+											datetime.datetime.now().strftime('%y%m%d_%H%M%S'))
+		
+		self._db.saveReactFile(flname=flname, postID=postID)
+
+		with open(flname, 'w', encoding='utf-8') as flres:
+			flres.writelines([self._driver.page_source])
+		return
 
 	def parseFriends(self):
 		indx = 0

@@ -40,6 +40,7 @@ class Profile(db.Entity):
 	profTwo = orm.Set('ProfRel', cascade_delete=True, reverse='prof2')
 	posts = orm.Set('ProfPost', cascade_delete=True, reverse='prof')
 	files = orm.Set('ProfFile', cascade_delete=True, reverse='prof')
+	rfiles = orm.Set('ReactionFile', cascade_delete=True, reverse='prof')
 
 class ProfRel(db.Entity):
 	prof1 = orm.Required(Profile, reverse='profOne')
@@ -62,12 +63,18 @@ class ProfFile(db.Entity):
 	flname = orm.Required(str)
 	fltype = orm.Required(str)
 
+class ReactionFile(db.Entity):
+	prof = orm.Required(Profile, reverse='rfiles') 
+	flname = orm.Required(str)
+	pID = orm.Required(str)
 
 PTYPE = {'FRIEND_REQ': 'Запрос в друзья', }
 FLTYPE = {'FRCARDS': {'title': 'Карточки друзей',
 					  'litera': 'f', }, 
 		  'LENTA': {'title': 'Посты, лента постов',
-					'litera': 'p', }
+					'litera': 'p', },
+		  'REACT': {'title': 'Список реакций на пост',
+					'litera': 'r', },		
 		 }
 
 db.generate_mapping(create_tables=True)
@@ -128,6 +135,11 @@ class ProfDB:
 	def saveProfFile(self, flname, fltype):
 		with orm.db_session():
 			pf = ProfFile(prof=self.pID, flname=flname, fltype=fltype)
+			orm.flush()
+
+	def saveReactFile(self, flname, postID):
+		with orm.db_session():
+			rf = ReactionFile(prof=self.pID, flname=flname, pID=postID)
 			orm.flush()
 
 	async def save2ProfPost(self, crd):
