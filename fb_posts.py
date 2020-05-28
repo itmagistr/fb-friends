@@ -19,6 +19,7 @@ class ParseLenta:
 		cnt = 0
 		# проход по файлу
 		if len(flname) > 0 :
+			logging.info('Размещаем карточки постов в очередь на обработку')
 			# обработать файл
 			with open(flname, 'r', encoding='utf-8') as flh:
 				html = bs(flh, 'html.parser')
@@ -59,8 +60,10 @@ class ParseLenta:
 				card.id = html.div.get('id')
 				card.actions = []
 				
-				t = html.find('h5', class_='_7tae _14f3 _14f5 _5pbw _5vra')
-				pl = t.find('a', class_='profileLink')
+				#t = html.find('h5', class_='_7tae _14f3 _14f5 _5pbw _5vra') 
+				#_7tae mbs _4bxd _5pbw _5vra
+				t = html.select_one('h5[class*="_7tae"]')
+				pl = t.find('a', class_='profileLink') if t is not None else None
 				if not pl is None:
 					card.title = pl.get('title')  
 				else:

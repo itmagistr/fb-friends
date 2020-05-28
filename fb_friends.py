@@ -70,7 +70,8 @@ def run02_ParseFileFrCards(opts):
 
 def run031_CollectPosts(opts):
 	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
-	fbparse.nav2Profile(opts.fbID)
+	fbparse.initProfile(opts.fbID)
+	fbparse.nav2Profile()
 	# читаем ленту постов указанного профиля
 	logging.info('Листаем список ...')
 	fbparse.scrollLenta(int(opts.posts))
@@ -81,14 +82,20 @@ def run031_CollectPosts(opts):
 
 def run032_CollectPosts(opts):
 	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
-	fbparse.nav2Profile(opts.fbID)
-	# читаем ленту постов указанного профиля
-	logging.info('Листаем список ...')
-	fbparse.scrollLenta(int(opts.posts))
-	logging.info('Сохраняем список сообщений в хронике ...')
-	fl = fbparse.save2File(opts.fbID, 'LENTA')
-	logging.info(fl)
-	fbparse.saveReactionList()
+	fbparse.initProfile(opts.fbID, flname=opts.inFL)
+	if len(opts.inFL) > 0 :
+		# список карточек постов из файла
+		fbparse.saveReactionList(opts.inFL)
+	else:
+		fbparse.nav2Profile()
+		# читаем ленту постов указанного профиля
+		logging.info('Листаем список ...')
+		fbparse.scrollLenta(int(opts.posts))
+		logging.info('Сохраняем список сообщений в хронике ...')
+		fl = fbparse.save2File(opts.fbID, 'LENTA')
+		logging.info(fl)
+		# список карточек постов из браузера после листания ленты
+		fbparse.saveReactionList()
 	logging.info('Завершено сохранение списков реакций на публикации')
 	return
 
@@ -105,7 +112,8 @@ def run042_ParsePosts(opts):
 
 def run05_CollectFrRequest(opts):
 	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
-	fbparse.nav2Profile(opts.fbID)
+	fbparse.initProfile(opts.fbID)
+	fbparse.nav2Profile()
 	# читаем список запросов в друзья указанного профиля
 	frReqs = fbparse.getFriendReqList()
 	lenfr = len(frReqs)
@@ -122,7 +130,8 @@ def run11_ListCollectFrCards(opts):
 	with open(opts.inFL, 'r') as infl:
 		profiles=[l.strip() for l in infl.readlines()]
 	for p in profiles:
-		fbparse.nav2Profile(p)
+		fbparse.initProfile(p)
+		fbparse.nav2Profile()
 		# читаем список друзей указанного профиля
 		cnt = fbparse.nav2Friends()
 		logging.info('Выполнен переход на закладку Друзья: {}'.format(cnt))
@@ -150,7 +159,7 @@ if __name__ == '__main__':
 	# +01 - сбор друзей нулевого участника - сохранить файл друзей
 	#  02 - парсинг файла 01, распараллелить парсинг файла 01
 	#  !031 - сбор 100 постов нулевого участника + список реакций и отреагирующих - сохранить файлы
-	#  !032 - сбор 100 постов со списком отреагировавших на пост 
+	#  !032 - сбор 100 постов со списком отреагировавших на пост (использовать на вход файл с постами и пропустить шаг листания ленты)
 	#  !041 - парсинг постов нулевого участника из файлов 03
 	#  !042 - парсинг 032
 
@@ -158,8 +167,10 @@ if __name__ == '__main__':
 	
 	# +11 - сбор первого круга друзей - сохраняем файлы список друзей
 	#  12 - парсинг файлов 11
-	#  13 - сбор постов первого круга друзей - сохраняем файлы
-	#  14 - парсинг постов файлов 21
+	#  131 - сбор постов первого круга друзей - сохраняем файлы
+	#  132 -
+	#  141 - парсинг постов файлов 21
+	#  142 -
 
 
 

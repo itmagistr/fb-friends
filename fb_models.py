@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import os
 import json
 from pony import orm
 import pony.orm.dbproviders.sqlite
@@ -110,6 +111,9 @@ class ProfDB:
 				# получить новый  ид запуска
 				ir = IRun(dt=datetime.datetime.now(), uid=str(uuid.uuid4()))
 				p = Profile(irun=ir, profID=ppID)
+				orm.flush()
+				if not flname is None:
+					pf = ProfFile(prof=p, flname=flname, fltype=self.getFLTYPE(flname))
 			else:
 				p = Profile.get(irun=ir, profID=ppID)
 				if p is None:
@@ -120,6 +124,14 @@ class ProfDB:
 			self.pID = p.id
 			logging.info('{}, {}, {}'.format(self.rID, self.uid, self.pID))
 	
+	def getFLTYPE(self, flname):
+		head, tail = os.path.split(flname)
+		res = tail[:1]
+		for k in FLTYPE.keys():
+			if res == FLTYPE[k]['litera']:
+				res = k
+		return res
+
 	def saveFriend(self, jdata):
 		with orm.db_session():
 			p = Profile.get(id=self.pID)

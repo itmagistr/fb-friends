@@ -3,6 +3,7 @@ import sys
 import time
 from pathlib import Path
 import datetime
+from bs4 import BeautifulSoup as bs
 from fb_models import ProfDB, dObj, FLTYPE
 import json
 import logging
@@ -27,22 +28,21 @@ class FBParser:
 		if pmaximize:
 			self._driver.maximize_window()
 		
-
-	def nav2Profile(self, pID, irunuid=None):
+	def initProfile(self, pID, irunuid=None, flname=None):
 		self._profile = dObj()
 		self._profile.ID=pID
 		self._profile.irunuid = irunuid
 		self._profile.friends = dObj()
 		self._profile.friends.cntF = -1
 		self._profile.friends.cntM = -1
-		
+		self._db = ProfDB(ppID=self._profile.ID, puid=irunuid, flname=flname)
+		self._profile.irunuid = self._db.curUID
+
+
+	def nav2Profile(self):
 		self._driver.get('https://www.facebook.com/{}'.format(self._profile.ID))
 		#self._driver.get('https://m.facebook.com/{}'.format(self._profile.ID))
 		time.sleep(3)
-		
-		self._db = ProfDB(ppID=self._profile.ID, puid=irunuid)
-		self._profile.irunuid = self._db.curUID
-
 		self._driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
 		time.sleep(1)
 		
@@ -173,29 +173,65 @@ class FBParser:
 		pass
 		return	
 
-	def saveReactionList(self):
-		posts = self._driver.find_elements_by_xpath('//div[@class="_5pcb _4b0l _2q8l"]')
+	def saveReactionList(self, inFL=''):
+		if len(inFL) > 0:
+			# карточки постов в файле
+			logging.info(f'Читаем карточки постов из файла {inFL}')
+			with open(inFL, 'r', encoding='utf-8') as flh:
+				html = bs(flh, 'html.parser')
+				posts = html.find_all('div', class_='_5pcb _4b0l _2q8l')
+		else:
+			# карточки постов в браузере
+			posts = self._driver.find_elements_by_xpath('//div[@class="_5pcb _4b0l _2q8l"]')
+		
 		# соберем список ссылок реакций
 		psts = []
+		cnt = 0
 		for p in posts:
+			cnt+=1
 			tp = dObj()
-			tp.postid = p.get_attribute('id')
-			logging.info(f'postid: {tp.postid}')
-			likes = p.find_elements_by_xpath('.//a[contains(@href,"ufi/reaction/profile/browser")]')
-			# взять ссылку на список реакций по данному посту
-			try:
-				tp.urlReactions = likes[0].get_attribute('href')
-				logging.info(f'reaction url: {tp.urlReactions}')
-			except:
-				tp.urlReactions = ''
-				logging.info(f'??? urlReactions not difined postid: {tp.postid}')
+			tp.urlReactions = ''
+
+			if len(inFL) > 0:
+				tp.postid = p.get('id')
+
+				logging.info(f'{cnt}, postid: {tp.postid}')
+				likes = p.select_one('a[href*="/ufi/reaction/profile/browser"]')
+				# взять ссылку на список реакций по данному посту
+				try:
+					tp.urlReactions = likes.get('href')
+					logging.info(f'reaction url: {tp.urlReactions}')
+				except:
+					logging.info(f'??? urlReactions not difined postid: {tp.postid}')
+			else:
+				tp.postid = p.get_attribute('id')
+				logging.info(f'postid: {tp.postid}')
+				likes = p.find_elements_by_xpath('.//a[contains(@href,"ufi/reaction/profile/browser")]')
+				# взять ссылку на список реакций по данному посту
+				try:
+					tp.urlReactions = likes[0].get_attribute('href')
+					logging.info(f'reaction url: {tp.urlReactions}')
+				except:
+					logging.info(f'??? urlReactions not difined postid: {tp.postid}')
+				
 			psts.append(tp)
 
 		# пройдемся по списку ссылок
+		lenpsts = len(psts)
+		logging.info(f'Запускаем сбор реакций по публикациям {lenpsts}')
+		indx=0
 		for p in psts:
-			self._driver.get(p.urlReactions)
-			time.sleep(3)
-			self.saveReaction2File(postID=p.postid)
+			indx+1
+			logging.info(f'Сбор реакций {indx}/{lenpsts}')
+			if len(p.urlReactions) > 0:
+				if 'http' not in p.urlReactions:
+					self._driver.get(f'https://facebook.com{p.urlReactions}')
+				else:
+					self._driver.get(p.urlReactions)
+				time.sleep(3)
+				self.saveReaction2File(postID=p.postid)
+			else:
+				logging.info(f'Отсутствует реакция на публикациию {p.postid}')
 		return
 
 	def getFriendReqList(self):
