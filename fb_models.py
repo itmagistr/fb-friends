@@ -57,6 +57,7 @@ class ProfPost(db.Entity):
 	cntC = orm.Optional(int)
 	cntR = orm.Optional(int)
 	jdata = orm.Optional(orm.Json)
+	rlist = orm.Set('ReactionUser', cascade_delete=True, reverse='post')
 
 class ProfFile(db.Entity):
 	prof = orm.Required(Profile, reverse='files') 
@@ -67,6 +68,12 @@ class ReactionFile(db.Entity):
 	prof = orm.Required(Profile, reverse='rfiles') 
 	flname = orm.Required(str)
 	pID = orm.Required(str)
+
+class ReactionUser(db.Entity):
+	post = orm.Required(ProfPost, reverse='rlist')
+	name = orm.Optional(str)
+	rtype = orm.Optional(str)
+	subtype = orm.Optional(str)
 
 PTYPE = {'FRIEND_REQ': 'Запрос в друзья', }
 FLTYPE = {'FRCARDS': {'title': 'Карточки друзей',
@@ -82,7 +89,7 @@ db.generate_mapping(create_tables=True)
 class ProfDB:
 	rID = 0 #runID
 	uid = ''
-	pID = 0
+	pID = 0 # ИД профиля в БД
 	def __init__(self, ppID, puid=None, flname=None):
 		# pID - user profile ID in FB
 		# uid - UUID to run one time
@@ -144,13 +151,35 @@ class ProfDB:
 
 	async def save2ProfPost(self, crd):
 		with orm.db_session():
-			pst = ProfPost(prof=self.pID, 
+			pst = ProfPost.get(prof=self.pID, 
+						   pubProf=crd.title if crd.title is not None else '-',
+						   pubdt=crd.pubdt if crd.pubdt is not None else '-',
+						   cntL = crd.likes,
+						   cntC = crd.comments,
+						   cntR = crd.reposts)
+			if pst is None:
+				pst = ProfPost(prof=self.pID, 
 						   pubProf=crd.title if crd.title is not None else '-',
 						   pubdt=crd.pubdt if crd.pubdt is not None else '-',
 						   txt=crd.content if crd.content is not None else '-',
+						   cntL = crd.likes,
+						   cntC = crd.comments,
+						   cntR = crd.reposts,
 						   jdata=json.loads(crd.toJSON()))
-		
+			if len(crd.rlist) > 0:
+				for c in crd.rlist:
+					r = ReactionUser.get(post=pst, name=c.name, rtype=c.rtype, subtype=c.subtype)
+					if r is None:
+						r = ReactionUser(post=pst, name=c.name, rtype=c.rtype, subtype=c.subtype)
+			orm.flush()
 
+	async def getReactionFile(self, postID):
+		res = ''
+		with orm.db_session():
+			rf = ReactionFile.get(prof=self.pID, pID=postID)
+			if not rf is None:
+				res = rf.flname
+		return res
 
 	def saveFriendReq(self, frRequests):
 		with orm.db_session():

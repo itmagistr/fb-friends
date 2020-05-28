@@ -13,7 +13,7 @@ class ParseFrCards:
 		#self.profile = profile
 		
 
-	async def prepareCards(self, threds=50):
+	async def prepareCards(self, threads=50):
 		
 		tasks=[]
 		q = asyncio.Queue()
@@ -30,7 +30,7 @@ class ParseFrCards:
 		logging.info('карточек в очереди на обработку: {}'.format(cnt))
 
 		# стартуем задачи в заданном кол-ве
-		for n in range(threds):
+		for n in range(threads):
 			task = asyncio.create_task(self.parseCard(f'work-{n}, ', q))
 			tasks.append(task)
 		logging.info('Ожидаем выполнения обработки карточек в {} потоках...'.format(len(tasks)))

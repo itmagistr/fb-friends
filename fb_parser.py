@@ -173,16 +173,6 @@ class FBParser:
 		pass
 		return	
 
-	# def switchOnTab(self, num):
-	# 	try:
-	# 		if len(self._driver.window_handles) < 2:
-	# 			self._driver.execute_script("window.open('about:blank','_blank');")
-				
-	# 		self._driver.switch_to.window(self._driver.window_handles[num])
-	# 	except IndexError:
-	# 		logging.info(f'switchOnTab error Window index {num}')
-	# 	return
-
 	def saveReactionList(self):
 		posts = self._driver.find_elements_by_xpath('//div[@class="_5pcb _4b0l _2q8l"]')
 		# соберем список ссылок реакций
