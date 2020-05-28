@@ -21,6 +21,7 @@ class ParseLenta:
 		if len(flname) > 0 :
 			logging.info('Размещаем карточки постов в очередь на обработку')
 			# обработать файл
+			started_at = time.monotonic()
 			with open(flname, 'r', encoding='utf-8') as flh:
 				html = bs(flh, 'html.parser')
 				for el in html.find_all('div', class_='_5pcb _4b0l _2q8l'):
@@ -29,15 +30,18 @@ class ParseLenta:
 					#logging.info(str(el))
 					q.put_nowait(str(el))
 					cnt+=1
-		logging.info('карточек в очереди на обработку: {}'.format(cnt))
+		total_slept_for = time.monotonic() - started_at
+		logging.info('за {:.3f} сек. размещено {} карточек в очередь на обработку'.format(total_slept_for, cnt))
 
 		# стартуем задачи в заданном кол-ве
 		for n in range(threads):
 			task = asyncio.create_task(self.parseCard(f'work-{n}, ', q))
 			tasks.append(task)
 		logging.info('Ожидаем выполнения обработки карточек в {} потоках...'.format(len(tasks)))
+		started_at = time.monotonic()
 		await asyncio.gather(*tasks, return_exceptions=False)
-		logging.info('Обработка карточек завершена')
+		total_slept_for = time.monotonic() - started_at
+		logging.info(f'Обработка карточек завершена за {total_slept_for:.3f} сек.')
 	
 	async def parseCard(self, name, msgq):
 		htmlstr = 'run first time'
@@ -67,7 +71,7 @@ class ParseLenta:
 				if not pl is None:
 					card.title = pl.get('title')  
 				else:
-					card.title = t.span.span.a['title'] if not t is None else '-'
+					card.title = t.span.span.a.string if not t is None else '-'
 
 				t = html.find('div', class_='_5pbx userContent _3576')
 				card.content = t.p.string if not t is None else '-'
