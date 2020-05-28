@@ -41,7 +41,7 @@ class ParseLenta:
 		started_at = time.monotonic()
 		await asyncio.gather(*tasks, return_exceptions=False)
 		total_slept_for = time.monotonic() - started_at
-		logging.info(f'Обработка карточек завершена за {total_slept_for:.3f} сек.')
+		logging.info(f'Обработка карточек {cnt} в {threads} потоков завершена за {total_slept_for:.3f} сек.')
 	
 	async def parseCard(self, name, msgq):
 		htmlstr = 'run first time'
@@ -97,8 +97,13 @@ class ParseLenta:
 							for el in html.find_all('li', class_=False):
 								for el2 in el.find_all('li', class_='_5i_q'):
 									robj = dObj()
-									t = el2.find('div', class_='_5j0e fsl fwb fcb')
-									robj.name = t.a.string #el2.div.a.get('title') 
+									#t = el2.find('div', class_='_5j0e fsl fwb fcb')
+									t = el2.select_one('div[class*="_5j0e"]') #_5j0e fsl fwb fcb _5wj-
+									robj.name = ''
+									try:
+										robj.name = t.a.string #el2.div.a.get('title') 
+									except:
+										logging.info(f'!!! ошибка определения имени отреагировавшего, файл {rfl}')
 									robj.subtype = el.div.string
 									robj.rtype = 'LIKES'
 									#logging.info('reaction obj: {}'.format(robj.toJSON()))
