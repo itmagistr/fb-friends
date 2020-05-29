@@ -14,36 +14,52 @@ logging.getLogger().setLevel(logging.INFO)
 logging.getLogger().addHandler(logging.FileHandler("fb_friends.log", encoding="utf-8"))
 
 def main(opts):
+	started_at = time.monotonic()
 	if opts.scen=='01':
 		run01_CollectFrCards(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 1
 	elif opts.scen=='02':
 		run02_ParseFileFrCards(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 2
 	elif opts.scen=='031':
 		run031_CollectPosts(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 31
 	elif opts.scen=='032':
 		run032_CollectPosts(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 31
 	elif opts.scen=='041':
 		run041_ParsePosts(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 41
 	elif opts.scen=='042':
 		run042_ParsePosts(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 42
 	elif opts.scen == '05':
 		run05_CollectFrRequest(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 5
 	elif opts.scen == '11':
 		run11_ListCollectFrCards(opts)
-		logging.info(f'Выполнение сценария {opts.scen} завершено')
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 11
+	elif opts.scen == '12':
+		run12_ListParseFrCards(opts)
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 12
 	else:
 		logging.info(f'сценарий {opts.scen} не доступен к запуску')
 		return -1
@@ -52,7 +68,8 @@ def main(opts):
 
 def run01_CollectFrCards(opts):
 	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
-	fbparse.nav2Profile(opts.fbID)
+	fbparse.initProfile(opts.fbID)
+	fbparse.nav2Profile()
 	# читаем список друзей указанного профиля
 	cnt = fbparse.nav2Friends()
 	logging.info('Выполнен переход на закладку Друзья: {}'.format(cnt))
@@ -64,8 +81,8 @@ def run01_CollectFrCards(opts):
 	return
 
 def run02_ParseFileFrCards(opts):
-	pc = ParseFrCards(opts.inFL, profile=opts.fbID)
-	asyncio.run(pc.prepareCards(threads=int(opts.threads)), debug=False)
+	pc = ParseFrCards(files=[opts.inFL])
+	asyncio.run(pc.prepareFiles(threads=int(opts.threads)), debug=False)
 	return
 
 def run031_CollectPosts(opts):
@@ -127,10 +144,13 @@ def run05_CollectFrRequest(opts):
 
 def run11_ListCollectFrCards(opts):
 	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
+	# во входном файле список профайлов по которым сохранить список друзей
 	with open(opts.inFL, 'r') as infl:
 		profiles=[l.strip() for l in infl.readlines()]
+	curIRun = None
 	for p in profiles:
-		fbparse.initProfile(p)
+		fbparse.initProfile(pID=p, irunuid=curIRun)
+		curIRun=fbparse.runUID
 		fbparse.nav2Profile()
 		# читаем список друзей указанного профиля
 		cnt = fbparse.nav2Friends()
@@ -142,6 +162,13 @@ def run11_ListCollectFrCards(opts):
 		logging.info(fl)
 	return
 
+def run12_ListParseFrCards(opts):
+	with open(opts.inFL, 'r') as fl:
+		ffiles = fl.readlines()
+	pc = ParseFrCards(files=ffiles)
+	asyncio.run(pc.prepareFiles(threads=int(opts.threads)), debug=False)
+	return
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--timeout', help='waiting timeout to load the page', default='10')
@@ -151,13 +178,15 @@ if __name__ == '__main__':
 	parser.add_argument('--inFL', help='the file of facebook ID pages', default='-')
 	parser.add_argument('--posts', help='posts count', default='10')
 	parser.add_argument('--threads', help='threads count', default='10')
+	parser.add_argument('--irun', help='irun UID', default='-')
+	
 	args = parser.parse_args()
 	main(args)
 
 	# python
 
 	# +01 - сбор друзей нулевого участника - сохранить файл друзей
-	#  02 - парсинг файла 01, распараллелить парсинг файла 01
+	# ?02 - парсинг файла 01, распараллелить парсинг файла 01
 	# +031 - сбор 100 постов нулевого участника + список реакций и отреагирующих - сохранить файлы
 	# +032 - сбор 100 постов со списком отреагировавших на пост (использовать на вход файл с постами и пропустить шаг листания ленты)
 	# +041 - парсинг постов нулевого участника из файлов 03

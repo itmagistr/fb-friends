@@ -17,7 +17,7 @@ class FBParser:
 	#_profile = dObj() #{'ID':'', 'friends': {}}
 	_db = None
 	_wh = []
-
+	# создание объекта
 	def __init__(self, pdriver, ptimeout, pmaximize=True):
 		chrome_options = Options()
 		chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222") # запустить предварительно Хром
@@ -27,7 +27,7 @@ class FBParser:
 		self._driver.implicitly_wait(ptimeout)
 		if pmaximize:
 			self._driver.maximize_window()
-		
+	# инициализация данных профиля
 	def initProfile(self, pID, irunuid=None, flname=None):
 		self._profile = dObj()
 		self._profile.ID=pID
@@ -38,7 +38,7 @@ class FBParser:
 		self._db = ProfDB(ppID=self._profile.ID, puid=irunuid, flname=flname)
 		self._profile.irunuid = self._db.curUID
 
-
+	# переход на страницу профиля
 	def nav2Profile(self):
 		self._driver.get('https://www.facebook.com/{}'.format(self._profile.ID))
 		#self._driver.get('https://m.facebook.com/{}'.format(self._profile.ID))
@@ -64,6 +64,7 @@ class FBParser:
 		logging.info(self._profile.toJSON())
 		self._db.saveProfile(self._profile)
 	
+	# переход на страницу друзей
 	def nav2Friends(self):
 		#TODO требует адаптации к новой структуре бд
 		self._driver.execute_script("window.scrollTo(0, 0);")
@@ -81,6 +82,7 @@ class FBParser:
 		time.sleep(3)
 		return self._profile.friends.cntF
 	
+	# скролинг страницы друзей
 	def scroll2EndPG(self):
 		# cкролить список друзей
 		if self._profile.friends.cntF > 0:
@@ -128,6 +130,7 @@ class FBParser:
 			else:
 				h_cnt = 3
 
+	# скролинг страницы постов, хронологии публикаций
 	def scrollLenta(self, cntPosts=100):
 		# cкролить список постов, чтобы было отображено cntPosts вледельца профиля
 		cntPGDown = round(cntPosts / 4) + 1
@@ -173,6 +176,7 @@ class FBParser:
 		pass
 		return	
 
+	# сохранение списка реакций на публикацию
 	def saveReactionList(self, inFL=''):
 		if len(inFL) > 0:
 			# карточки постов в файле
@@ -234,16 +238,17 @@ class FBParser:
 				logging.info(f'Отсутствует реакция на публикациию {p.postid}')
 		return
 
+	# сбор и сохранение списка запросов в друзья
 	def getFriendReqList(self):
 		self._driver.get('https://www.facebook.com/friends/requests/?fcref=jwl')
 		time.sleep(3)
-		self.save2File('frReq')
+		self.save2File('frReq') #??? возможно другой темплейт названия файла требуется назначать во время вызова
 		links = self._driver.find_elements_by_xpath('//div[contains(@class,"friendRequestItem")]')
 		self._profile.friendReq = [l.get_attribute('data-id') for l in links]
 		self._db.saveFriendReq(self._profile.friendReq)
 		return self._profile.friendReq
 	
-	
+	# сохранение открытой страницы в файл html
 	def save2File(self, fltmpl, fltype):
 		pth = './profiles/{}'.format(self._profile.ID)
 		Path(pth).mkdir(parents=True, exist_ok=True)
@@ -255,7 +260,7 @@ class FBParser:
 			flres.writelines([self._driver.page_source])
 		return flname
 
-	
+	# сохранение списка отреагировавших на публикацию в файл
 	def saveReaction2File(self, postID):
 		pth = './profiles/{}'.format(self._profile.ID)
 		Path(pth).mkdir(parents=True, exist_ok=True)
@@ -269,6 +274,8 @@ class FBParser:
 			flres.writelines([self._driver.page_source])
 		return
 
+	# ??? пока что не задействована
+	# --- к удалению
 	def parseFriends(self):
 		indx = 0
 		for fr in self._driver.find_elements_by_xpath('//li[@class="_698"]'):
@@ -296,6 +303,7 @@ class FBParser:
 	def runUID(self):
 		return self._db.curUID if not self._db is None else None
 
+# вспомогательная функция вычитывания кол-ва друзей из текста
 def getNumFriends(pstr):
 	resN = 0
 	resM = 0
@@ -313,6 +321,7 @@ def getNumFriends(pstr):
 		logging.info("getNumFriends() Unexpected error: {}".format(sys.exc_info()[0]))
 	return (resN, resM, resT)
 
+# вспомогательная функция вычитывания ИД профиля
 def getFriendID(linkstr):
 	res = ''
 	if '?fref=profile' in linkstr:
@@ -324,21 +333,20 @@ def getFriendID(linkstr):
 		res = linkstr[posStart:posEnd]
 	return res
 
-
+# вспомогательная функция удаления пробелов
 def removeSpaces(s):
 	return s.replace(' ', '').replace(chr(160), '').strip()
 
+# вспомогательная функция проверки нахождения одной из подстрок в анализируемой строке
 def oneElementInStr(elements, pstr):
 	res = False
+	#if any(b'\r\n' in line for line in lines):
 	for el in elements:
 		if el in pstr:
 			res = True
 			break
 	return res
 
+# вспомогательная функция вычитывания только цифр из строки
 def onlyDigits(pstr):
 	return ''.join([ch for ch in pstr if ch.isdigit()])
-
-#https://www.facebook.com/friends/requests/?fcref=jwl
-#$x('//div[contains(@class,"friendRequestItem")]/@data-id')[0].value
-#<div class="clearfix ruUserBox _3-z friendRequestItem" data-id="100003286515758" data-ft="{&quot;tn&quot;:&quot;-Z&quot;}" id="u_fetchstream_3_d"><a href="https://www.facebook.com/profile.php?id=100003286515758&amp;fref=%2Freqs.php" class="_8o _8t lfloat _ohe" tabindex="-1" aria-hidden="true"><div class="uiScaledImageContainer ruProfilePicXLarge"><img class="scaledImageFitWidth img" src="https://scontent-hel2-1.xx.fbcdn.net/v/t1.0-1/cp0/c3.5.75.75a/p80x80/74465175_2502816499837876_4791922280894562304_o.jpg?_nc_cat=105&amp;_nc_sid=dbb9e7&amp;_nc_ohc=5w77TOlHoLMAX992JZd&amp;_nc_ht=scontent-hel2-1.xx&amp;oh=e57589a65ff3cb3c282ef484663fc22d&amp;oe=5EEDC515" data-src="https://scontent-hel2-1.xx.fbcdn.net/v/t1.0-1/cp0/c3.5.75.75a/p80x80/74465175_2502816499837876_4791922280894562304_o.jpg?_nc_cat=105&amp;_nc_sid=dbb9e7&amp;_nc_ohc=5w77TOlHoLMAX992JZd&amp;_nc_ht=scontent-hel2-1.xx&amp;oh=e57589a65ff3cb3c282ef484663fc22d&amp;oe=5EEDC515" alt="" width="75" height="75" data-ft="{&quot;tn&quot;:&quot;-^&quot;}" itemprop="image"></div></a><div class="_42ef"><div class="_3qn7 _61-0 _2fyi _3qng"><div><div class="friendBrowserContent"><div class="fcg"><div class="_6-_"><a title="Ирина Богомолова" href="https://www.facebook.com/profile.php?id=100003286515758&amp;fref=%2Freqs.php&amp;__tn__=%2Cd-Z-R&amp;eid=ARBI9vEydV4QdyR4BRSKFwLVOl_nhAwE78h1UiEDMsd_NUtKSgHLHc1xElXNqIot-M5EqqRTn8GXNNo8" data-hovercard="/ajax/hovercard/user.php?id=100003286515758&amp;extragetparams=%7B%22__tn__%22%3A%22%2Cd-Z-R%22%2C%22eid%22%3A%22ARBI9vEydV4QdyR4BRSKFwLVOl_nhAwE78h1UiEDMsd_NUtKSgHLHc1xElXNqIot-M5EqqRTn8GXNNo8%22%7D" data-hovercard-prefer-more-content-show="1">Ирина Богомолова</a></div><div class="hidden_elem followUpQuestion _1byw fcg" id="u_fetchstream_3_k"><div class="clearfix _5hb1 _2dzh"><a role="button" class="_42ft _4jy0 _5hb3 rfloat _ohf _4jy3 _517h _51sy mls" href="#" data-hover="tooltip" data-tooltip-content="Если вы нажмете &quot;Отметить как спам&quot;, этот пользователь не сможет отправлять вам запросы на добавление в друзья.">Пометить как спам</a><div class="_2dze _1byw">Запрос удален.</div></div><img class="_9- hidden_elem img" src="https://static.xx.fbcdn.net/rsrc.php/v3/yk/r/LOOn0JtHNzb.gif" alt="" width="16" height="16"><div class="clearfix _5hb2 hidden_elem _2dzh"><a role="button" class="_42ft _4jy0 _2qk_ rfloat _ohf _4jy3 _517h _51sy mls" href="#">Отменить</a><div class="_2dze _1byw">Вы не будете получать новые запросы на добавление в друзья от этого человека.</div></div><div class="mrs _a2 hidden_elem _2dze _1byw">Вы снова сможете получать запросы на добавление в друзья  от этого человека.</div><div class="_9z hidden_elem _2dze _1byw">Произошла ошибка при изменении этого запроса на добавление в друзья. Попробуйте еще раз позже.</div></div><div class="requestInfoContainer"><div><ul class="uiList _7ebh _4kg"><li><table class="uiGrid _51mz" cellspacing="0" cellpadding="0" role="presentation"><tbody><tr class="_51mx"><td class="_51m- vTop hLeft prs"><div class="_43qm _7ebk _4usz"><ul class="uiList _4cg3 _509- _4ki" style="display:inline-block"><li class="_43q7"><a href="https://www.facebook.com/elina.braginskaya" class="link" data-jsid="anchor" data-hover="tooltip" data-tooltip-content="Элина Брагинская"><img class="_s0 _3qxe img" src="https://scontent-hel2-1.xx.fbcdn.net/v/t31.0-1/cp0/p50x50/14047292_1050461645038755_4344423548548203139_o.jpg?_nc_cat=111&amp;_nc_sid=dbb9e7&amp;_nc_ohc=s-Ei2ZwRjrcAX9ptDnQ&amp;_nc_ht=scontent-hel2-1.xx&amp;oh=8d727f0a36851cf36221f14059cca83e&amp;oe=5EEF0339" alt="Элина Брагинская" data-jsid="img"></a></li></ul></div></td><td class="_51m- vTop hLeft _51mw"><span class="_7ebi"><a class="_7ebj" title="Элина Брагинская" href="https://www.facebook.com/elina.braginskaya?__tn__=%2Cd-Z-R&amp;eid=ARC_PxdgTMXLXpMMDA3e5rq9ab8TVEkPfa_Kwh1Uam8Dgmtj-wNvXtsWy6g1mv1y0mcOUmRN2sTA3BkZ" data-hovercard="/ajax/hovercard/user.php?id=100002247898334&amp;extragetparams=%7B%22__tn__%22%3A%22%2Cd-Z-R%22%2C%22eid%22%3A%22ARC_PxdgTMXLXpMMDA3e5rq9ab8TVEkPfa_Kwh1Uam8Dgmtj-wNvXtsWy6g1mv1y0mcOUmRN2sTA3BkZ%22%7D" data-hovercard-prefer-more-content-show="1">Элина Брагинская</a> и <a ajaxify="/ajax/browser/dialog/mutual_friends/?uid=100003286515758" href="/browse/mutual_friends/?uid=100003286515758" rel="dialog" role="button" data-hover="tooltip" data-tooltip-uri="/ajax/mutual_friends/tooltip.php?friend_id=100003286515758&amp;exclude_id=100002247898334">еще 1 общий друг</a></span></td></tr></tbody></table></li></ul></div><div></div></div></div></div></div><div class="_7x0o ruResponse ruResponseSectionContainer"><div class="ruResponseButtons"><div class="_3qn7 _61-0 _2fyi _3qnf"><button value="1" class="_42ft _4jy0 _4jy3 _4jy1 selected _51sy" aria-label="Подтвердить запрос на добавление в друзья от Ирины Богомоловой" type="submit" id="u_fetchstream_3_l">Подтвердить</button><button value="1" class="_42ft _4jy0 _4jy3 _517h _51sy" aria-label="Удалить запрос на добавление в друзья от Ирины Богомоловой" type="submit" id="u_fetchstream_3_m">Удалить запрос</button></div></div><img class="ruResponseLoading hidden_elem img" src="https://static.xx.fbcdn.net/rsrc.php/v3/yk/r/LOOn0JtHNzb.gif" alt="" aria-busy="true" aria-valuemin="0" aria-valuemax="100" aria-valuetext="Загрузка" role="progressbar" tabindex="-1" width="16" height="16"><span class="ruTransportErrorMsg hidden_elem">Ошибка соединения. Пожалуйста, проверьте ваше подключение к Интернету.</span></div></div></div></div>

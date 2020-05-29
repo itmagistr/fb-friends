@@ -91,6 +91,7 @@ class ProfDB:
 	rID = 0 #runID
 	uid = ''
 	pID = 0 # ИД профиля в БД
+
 	def __init__(self, ppID, puid=None, flname=None):
 		# pID - user profile ID in FB
 		# uid - UUID to run one time
@@ -102,6 +103,7 @@ class ProfDB:
 				pf = ProfFile.get(flname=flname)
 				if not pf is None:
 					puid = pf.prof.irun.uid
+					ppID = pf.prof.profID
 
 			if not puid is None:
 				# получить текущий идентификатор запуска
@@ -122,6 +124,7 @@ class ProfDB:
 			self.rID = ir.id
 			self.uid = ir.uid
 			self.pID = p.id
+			self.ppID = p.profID
 			logging.info('{}, {}, {}'.format(self.rID, self.uid, self.pID))
 	
 	def getFLTYPE(self, flname):
@@ -132,13 +135,25 @@ class ProfDB:
 				res = k
 		return res
 
-	def saveFriend(self, jdata):
+	async def saveFriend(self, jdata):
 		with orm.db_session():
 			p = Profile.get(id=self.pID)
 			for j in jdata:
-				pr = Profile(irun=self.rID, profID=j["frID"] if len(j['frID']) > 0 else 'not Active' , cntF=j['cntFriends'], cntM=j['cntFriendsM'], jdata=j, name=j['name'])
-				fr = ProfRel(prof1=p, prof2=pr, ptype='FRIEND')
-				#sf = Friend(irun=ir, data=j, name=j['name'], cntF=j['cntFriends'], cntM=j['cntFriendsM'], cntT=j['txtFriends'], frID=j['frID'])
+				pr = Profile.get(irun=self.rID, 
+							profID=j["frID"] if len(j['frID']) > 0 else 'not Active' , 
+							cntF=j['cntFriends'], 
+							cntM=j['cntFriendsM'], 
+							name=j['name'] if j['name'] is not None else '-')
+				if pr is None:
+					pr = Profile(irun=self.rID, 
+							profID=j["frID"] if len(j['frID']) > 0 else 'not Active' , 
+							cntF=j['cntFriends'], 
+							cntM=j['cntFriendsM'], 
+							jdata=j, 
+							name=j['name'] if j['name'] is not None else '-')
+				fr = ProfRel.get(prof1=p, prof2=pr, ptype='FRIEND')
+				if fr is None:
+					fr = ProfRel(prof1=p, prof2=pr, ptype='FRIEND')
 			orm.flush()
 
 	def saveProfile(self, profobj):
@@ -205,5 +220,8 @@ class ProfDB:
 	@property
 	def curID(self):
 		return self.rID
+	@property
+	def curProfID(self):
+		return self.ppID #ProfID, itmagistr
 
 	

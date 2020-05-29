@@ -48,7 +48,7 @@ class ParseLenta:
 		cdb = ProfDB(ppID=self.owner, flname=self.flname)
 
 		while len(htmlstr) > 0:
-			await asyncio.sleep(0.5)
+			await asyncio.sleep(0.1)
 			try:
 				htmlstr = msgq.get_nowait()
 			except asyncio.QueueEmpty:
