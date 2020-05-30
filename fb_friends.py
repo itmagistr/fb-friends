@@ -60,6 +60,26 @@ def main(opts):
 		proctime = time.monotonic() - started_at
 		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
 		return 12
+	elif opts.scen=='131':
+		run131_CollectPosts(opts)
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 131
+	elif opts.scen=='132':
+		run132_CollectPosts(opts)
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 131
+	elif opts.scen=='141':
+		run141_ParsePosts(opts)
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 141
+	elif opts.scen=='142':
+		run142_ParsePosts(opts)
+		proctime = time.monotonic() - started_at
+		logging.info(f'Выполнение сценария {opts.scen} завершено за {proctime:.3f} сек.')
+		return 142
 	else:
 		logging.info(f'сценарий {opts.scen} не доступен к запуску')
 		return -1
@@ -124,7 +144,6 @@ def run041_ParsePosts(opts):
 def run042_ParsePosts(opts):
 	pp = ParseLenta(dirname='', owner=opts.fbID)
 	asyncio.run(pp.prepareCards(opts.inFL, threads=int(opts.threads)), debug=False)
-
 	return
 
 def run05_CollectFrRequest(opts):
@@ -169,6 +188,58 @@ def run12_ListParseFrCards(opts):
 	asyncio.run(pc.prepareFiles(threads=int(opts.threads)), debug=False)
 	return
 
+def run131_CollectPosts(opts):
+	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
+	# во входном файле список профайлов по которым сохранить список постов
+	with open(opts.inFL, 'r') as infl:
+		profiles=[l.strip() for l in infl.readlines()]
+	curIRun = None
+	for p in profiles:
+		fbparse.initProfile(pID=p, irunuid=curIRun)
+		curIRun=fbparse.runUID
+		fbparse.nav2Profile()
+		# читаем ленту постов указанного профиля
+		logging.info('Листаем список ...')
+		fbparse.scrollLenta(int(opts.posts))
+		logging.info('Сохраняем список сообщений в хронике ...')
+		fl = fbparse.save2File(p, 'LENTA')
+		logging.info(fl)
+	return
+
+def run132_CollectPosts(opts):
+	fbparse = FBParser(pdriver=opts.webdriver, ptimeout=opts.timeout)
+	# во входном файле список лент публикаций по которым сохранить список реакций
+	with open(opts.inFL, 'r') as infl:
+		files=[l.strip() for l in infl.readlines()]
+	curP = 'UNKNOWN'
+	indx = 0
+	lenfiles = len(files)
+	for flname in files:
+		if len(flname) > 1 :
+			indx+=1
+			# инициализация по файлу
+			logging.info('{:04d}/{:04d} начинаем обработку {}'.format(indx, lenfiles, flname))
+			fbparse.initProfile(pID='UNKNOWN', flname=flname)
+			# для дальнейшей работы получить профиль, который соответствует файлу
+			curP=fbparse.profID
+			# список карточек постов из файла
+			fbparse.saveReactionList(flname)
+			logging.info(f'Завершено сохранение списков реакций на публикации по файлу {flname}')
+	return
+
+def run141_ParsePosts(opts):
+	with open(opts.inFL, 'r') as fl:
+		ffiles = fl.readlines()
+	pp = ParseLenta(files=ffiles)
+	asyncio.run(pp.prepareFiles(threads=int(opts.threads)), debug=False)
+	return
+
+def run142_ParsePosts(opts):
+	with open(opts.inFL, 'r') as fl:
+		ffiles = fl.readlines()
+	pp = ParseLenta(files=ffiles)
+	asyncio.run(pp.prepareFiles(threads=int(opts.threads)), debug=False)
+	return
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--timeout', help='waiting timeout to load the page', default='10')
@@ -186,7 +257,7 @@ if __name__ == '__main__':
 	# python
 
 	# +01 - сбор друзей нулевого участника - сохранить файл друзей
-	# ?02 - парсинг файла 01, распараллелить парсинг файла 01
+	# +02 - парсинг файла 01, распараллелить парсинг файла 01
 	# +031 - сбор 100 постов нулевого участника + список реакций и отреагирующих - сохранить файлы
 	# +032 - сбор 100 постов со списком отреагировавших на пост (использовать на вход файл с постами и пропустить шаг листания ленты)
 	# +041 - парсинг постов нулевого участника из файлов 03
@@ -195,7 +266,7 @@ if __name__ == '__main__':
 	# +05 - сбор запросов в друзья нулевого участника + в бд сохраняем + сохранить файл постов и списки лайкнувших
 	
 	# +11 - сбор первого круга друзей - сохраняем файлы список друзей
-	#  12 - парсинг файлов 11
+	# +12 - парсинг файлов 11
 	#  131 - сбор постов первого круга друзей - сохраняем файлы
 	#  132 -
 	#  141 - парсинг постов файлов 21

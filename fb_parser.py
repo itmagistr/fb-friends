@@ -37,6 +37,7 @@ class FBParser:
 		self._profile.friends.cntM = -1
 		self._db = ProfDB(ppID=self._profile.ID, puid=irunuid, flname=flname)
 		self._profile.irunuid = self._db.curUID
+		self._profile.ID=self._db.curProfID
 
 	# переход на страницу профиля
 	def nav2Profile(self):
@@ -225,7 +226,7 @@ class FBParser:
 		logging.info(f'Запускаем сбор реакций по публикациям {lenpsts}')
 		indx=0
 		for p in psts:
-			indx+1
+			indx+=1
 			logging.info(f'Сбор реакций {indx}/{lenpsts}')
 			if len(p.urlReactions) > 0:
 				if 'http' not in p.urlReactions:
@@ -302,6 +303,9 @@ class FBParser:
 	@property
 	def runUID(self):
 		return self._db.curUID if not self._db is None else None
+	@property
+	def profID(self):
+		return self._db.curProfID if not self._db is None else None
 
 # вспомогательная функция вычитывания кол-ва друзей из текста
 def getNumFriends(pstr):

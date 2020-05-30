@@ -7,45 +7,81 @@ import os
 import time
 
 class ParseLenta:
-	def __init__(self, dirname, owner):
-		self.profDir = dirname
-		self.owner = owner
+	def __init__(self, files, irunuid=None):
+		#!!!!self.owner = owner
+		self.files = files # файл со списком файлов, которые требуется распарсить
+		self.irun = irunuid # вычислить на следующем шаге
 		pass
-		
-	async def prepareCards(self, flname, threads=50):
-		self.flname = flname
-		tasks=[]
-		q = asyncio.Queue()
-		cnt = 0
-		# проход по файлу
-		if len(flname) > 0 :
-			logging.info('Размещаем карточки постов в очередь на обработку')
-			# обработать файл
-			started_at = time.monotonic()
-			with open(flname, 'r', encoding='utf-8') as flh:
-				html = bs(flh, 'html.parser')
-				for el in html.find_all('div', class_='_5pcb _4b0l _2q8l'):
-					# карточки в очередь сообщений
-					#logging.info('-----------------------------')
-					#logging.info(str(el))
-					q.put_nowait(str(el))
-					cnt+=1
-		total_slept_for = time.monotonic() - started_at
-		logging.info('за {:.3f} сек. размещено {} карточек в очередь на обработку'.format(total_slept_for, cnt))
-
-		# стартуем задачи в заданном кол-ве
-		for n in range(threads):
-			task = asyncio.create_task(self.parseCard(f'work-{n}, ', q))
-			tasks.append(task)
-		logging.info('Ожидаем выполнения обработки карточек в {} потоках...'.format(len(tasks)))
-		started_at = time.monotonic()
-		await asyncio.gather(*tasks, return_exceptions=False)
-		total_slept_for = time.monotonic() - started_at
-		logging.info(f'Обработка карточек {cnt} в {threads} потоков завершена за {total_slept_for:.3f} сек.')
 	
-	async def parseCard(self, name, msgq):
+	# Запускаем обработку файлов в потоках
+	async def prepareFiles(self, threads=20):
+		lenfiles = len(self.files)
+		logging.info('файлов на обработку: {}'.format(lenfiles))
+		tasks=[]
+		fq = asyncio.Queue()
+		for f in self.files:
+			fq.put_nowait(f.strip())
+		# стартуем задачи в заданном кол-ве
+		threads = threads if lenfiles > threads else lenfiles
+		for n in range(threads):
+			task = asyncio.create_task(self.prepareCards(f'procfile-{n}, ', fq))
+			tasks.append(task)
+		logging.info('Ожидаем выполнения обработки файлов в {} потоках...'.format(len(tasks)))
+		await asyncio.gather(*tasks, return_exceptions=False)
+		logging.info('Обработка файлов завершена')
+		
+	async def prepareCards(self, workname, flq, threads=10):
+		flstr = 'run first time'
+		oldfl = flstr
+		#print(name, self.irun, self.profile)
+		while len(flstr) > 0:
+			await asyncio.sleep(0.1)
+			try:
+				flstr = flq.get_nowait()
+			except asyncio.QueueEmpty:
+				flstr = ''
+			if len(flstr) > 0 :
+				# обработка очередного файла
+				tasks=[]
+				q = asyncio.Queue()
+				cnt = 0
+				
+				# по файлу получить профиль 
+				if oldfl == flstr:
+					pass
+				else:
+					curDB = ProfDB('UNKNOWN', flname=flstr)
+					oldfl = flstr
+				
+				profID = curDB.curProfID if curDB is not None else 'UNKNOWN' # itmagistr
+
+				logging.info('Размещаем карточки постов в очередь на обработку')
+				# обработать файл
+				started_at = time.monotonic()
+				with open(flstr, 'r', encoding='utf-8') as flh:
+					html = bs(flh, 'html.parser')
+					for el in html.find_all('div', class_='_5pcb _4b0l _2q8l'):
+						# карточки в очередь сообщений
+						#logging.info('-----------------------------')
+						#logging.info(str(el))
+						q.put_nowait(str(el))
+						cnt+=1
+				total_slept_for = time.monotonic() - started_at
+				logging.info('за {:.3f} сек. размещено {} карточек в очередь на обработку'.format(total_slept_for, cnt))
+
+				# стартуем задачи в заданном кол-ве
+				for n in range(threads):
+					task = asyncio.create_task(self.parseCard(f'work-{n}, ', q, curDB))
+					tasks.append(task)
+				logging.info('Ожидаем выполнения обработки карточек в {} потоках...'.format(len(tasks)))
+				started_at = time.monotonic()
+				await asyncio.gather(*tasks, return_exceptions=False)
+				total_slept_for = time.monotonic() - started_at
+				logging.info(f'Обработка карточек {cnt} в {threads} потоков завершена за {total_slept_for:.3f} сек.')
+	
+	async def parseCard(self, name, msgq, cdb):
 		htmlstr = 'run first time'
-		cdb = ProfDB(ppID=self.owner, flname=self.flname)
+		#cdb = ProfDB(ppID=self.owner, flname=self.flname)
 
 		while len(htmlstr) > 0:
 			await asyncio.sleep(0.1)
@@ -113,40 +149,7 @@ class ParseLenta:
 				#сообщить, что сообщение обработано
 				msgq.task_done()
 
-	async def parseFiles(self):
-		tasks=[]
-		q = asyncio.Queue()
-
-		# проход по папке с файлами
-		for root, dirs, files in os.walk(self.profDir):
-			for x in files:
-				curFl = os.path.join(root, x)
-				# путь к файлу строкой в очередь сообщений для обработки
-				q.put_nowait(curFl)
-			
-		for n in range(50):
-			task = asyncio.create_task(self.parseFile(f'work-{n}, ', q))
-			tasks.append(task)
-		logging.info('Ожидаем выполнения обработки файлов в {} потоках...'.format(len(tasks)))
-		await asyncio.gather(*tasks, return_exceptions=False)
-		logging.info('Обработка файлов завершена')
-
-	async def parseFile(self, name, msgq):
-		cfl = 'run first time'
-		while len(cfl) > 0:
-			await asyncio.sleep(0.5)
-			try:
-				cfl = msgq.get_nowait()
-			except asyncio.QueueEmpty:
-				cfl = ''
-			if len(cfl) > 0 :
-				# обработать файл
-				with open(cfl, 'r', encoding='utf-8') as flh:
-					html = bs(flh, 'html.parser')
-					
-				print(name, cfl)
-				#сообщить, что сообщение обработано
-				msgq.task_done()
+	
 			
 def getPubDT(dtstr):
 	res = ''
